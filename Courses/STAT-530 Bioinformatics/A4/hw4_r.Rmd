@@ -1,0 +1,53 @@
+---
+title: "STAT 530 Homework 4"
+output: html_document
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+Conduct the following analyses using the `golub.csv` file, available on Canvas. The data are from [https://www.openintro.org/data/index.php?data=golub](https://www.openintro.org/data/index.php?data=golub) and the website describes the rows and columns.
+
+Notice that the working directory in VSCode by default is set to the project root directory. Please set up the correct path to the `golub.csv` file. Run `getwd()` to check the current working directory. Also, you probably need to change the file path when you export the Rmd file.
+
+Please install the `umap` package before running the code. Run the following command in the R console:
+
+```{r}
+# install.packages("umap") # uncomment this line to install the package
+```
+
+Export your solutions to HTML and submit the HTML file on Canvas.
+
+## Problem 1 (2 points)
+
+Using UMAP, construct two latent numeric features using the 7,129 gene expression values for each patient, then visualize the patients using these two features (1 point), coloring each patient by cancer type (1 point). You can use the default parameters when you run the UMAP algorithm.
+
+\textbf{Solution}.
+
+```{r}
+
+```
+
+## Problem 2 (3 points)
+
+Calculate the first 5 principal components of the gene expression data, after scaling the data to have mean 0 and variance 1 (1 point). Based on these principal components, use the k-means clustering algorithm to group the patients into three clusters (1 point). Visualize the patients using their UMAP coordinates but this time color them using the k-means cluster assignments (1 point).
+
+\textbf{Solution}.
+
+```{r}
+
+```
+
+## Problem 3 (4 points)
+
+Identify genes that are differentially expressed between subjects with AML and those without, adjusting for possible confounding by whether the patient sample came from bone marrow or peripheral blood (1 point). Define a gene to be differential expressed if it has a false discovery rate of at most 0.05 (1 point). How many genes are differentially expressed (1 point)? What is the gene symbol of the most differentially expressed gene, by p-value (1 point)?
+
+\textbf{Solution}.
+
+```{r}
+
+```
