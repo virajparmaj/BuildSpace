@@ -6,6 +6,7 @@ urlcolor: blue
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(repos = c(CRAN = "https://cloud.r-project.org"))
 ```
 
 ## Instructions
@@ -17,7 +18,8 @@ Notice that the working directory in VSCode by default is set to the project roo
 Please install the `umap` package before running the code. Run the following command in the R console:
 
 ```{r}
-# install.packages("umap") # uncomment this line to install the package
+install.packages("umap")
+library(umap)
 ```
 
 Export your solutions to HTML and submit the HTML file on Canvas.
@@ -29,6 +31,30 @@ Using UMAP, construct two latent numeric features using the 7,129 gene expressio
 \textbf{Solution}.
 
 ```{r}
+# Load necessary libraries
+library(umap)
+library(ggplot2)
+
+# Load the dataset
+golub <- read.csv("golub.csv", header = TRUE)
+
+# Extract gene expression data (columns 7 onward)
+gene_expr <- golub[, 7:ncol(golub)]
+
+# Run UMAP (default parameters)
+set.seed(42)  # for reproducibility
+umap_res <- umap(gene_expr)
+
+# Create a data frame with UMAP coordinates and cancer type
+umap_df <- data.frame(UMAP1 = umap_res$layout[, 1],
+                      UMAP2 = umap_res$layout[, 2],
+                      Cancer = golub$cancer)
+
+# Plot the UMAP results, coloring by cancer type
+ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = Cancer)) +
+  geom_point(size = 2, alpha = 0.8) +
+  ggtitle("UMAP Visualization of Golub Data by Cancer Type") +
+  theme_minimal()
 
 ```
 
@@ -39,6 +65,41 @@ Calculate the first 5 principal components of the gene expression data, after sc
 \textbf{Solution}.
 
 ```{r}
+# Scale data (mean 0, variance 1)
+scaled_expr <- scale(gene_expr)
+
+# Perform PCA
+pca_res <- prcomp(scaled_expr, center = FALSE, scale. = FALSE)  # Already scaled
+
+# Extract the first 5 principal components
+X_pca <- pca_res$x[, 1:5]
+
+# Check dimensions (should be 72 rows, 5 columns)
+dim(X_pca)
+
+set.seed(42)  # for reproducibility
+km <- kmeans(X_pca, centers = 3, nstart = 25)
+clusters <- km$cluster
+
+library(umap)
+library(ggplot2)
+
+# Run UMAP on the same scaled expression data (or you could use X_pca, but typically
+# we do UMAP on the full scaled gene data)
+umap_res <- umap(scaled_expr)
+
+# Build a data frame for plotting
+umap_df <- data.frame(
+  UMAP1 = umap_res$layout[, 1],
+  UMAP2 = umap_res$layout[, 2],
+  Cluster = factor(clusters)
+)
+
+# Plot the UMAP results, coloring by cluster
+ggplot(umap_df, aes(x = UMAP1, y = UMAP2, color = Cluster)) +
+  geom_point(size = 2, alpha = 0.8) +
+  ggtitle("UMAP Visualization Colored by k-Means Clusters") +
+  theme_minimal()
 
 ```
 
@@ -50,4 +111,71 @@ Identify genes that are differentially expressed between subjects with AML and t
 
 ```{r}
 
+# Create AML indicator and factor for BM/PB
+golub$aml_flag <- as.integer(golub$cancer == "aml")
+golub$BM.PB <- factor(golub$BM.PB)
+
+# Identify gene columns (columns 7 onward)
+genes <- colnames(golub)[7:ncol(golub)]
+
+# Initialize a vector to store p-values
+pvals <- numeric(length(genes))
+names(pvals) <- genes
+
+# Loop through each gene
+for (g in genes) {
+  # Extract gene expression
+  y <- golub[[g]]
+  
+  # Skip if zero variance
+  if (sd(y) == 0) {
+    pvals[g] <- NA
+    next
+  }
+  
+  # Build a small data frame for the model
+  model_df <- data.frame(
+    y = y,
+    aml_flag = golub$aml_flag,
+    BM.PB = golub$BM.PB
+  )
+  
+  # Safely fit the linear model (catch errors)
+  fit <- tryCatch(
+    lm(y ~ aml_flag + BM.PB, data = model_df),
+    error = function(e) NULL
+  )
+  
+  # If the model was successfully fit
+  if (!is.null(fit)) {
+    coefs <- summary(fit)$coefficients
+    
+    # Ensure "aml_flag" row exists in the coefficients table
+    if ("aml_flag" %in% rownames(coefs)) {
+      pvals[g] <- coefs["aml_flag", "Pr(>|t|)"]
+    } else {
+      pvals[g] <- NA
+    }
+  } else {
+    pvals[g] <- NA
+  }
+}
+
+# 1) We've identified p-values for AML effect while adjusting for BM vs. PB.
+
+# 2) FDR adjustment
+adj_pvals <- p.adjust(pvals, method = "fdr")
+
+# Mark genes as DE if FDR <= 0.05
+de_genes <- names(adj_pvals)[adj_pvals <= 0.05]
+
+# 3) Number of differentially expressed genes
+num_de_genes <- length(de_genes)
+cat("Number of differentially expressed genes (FDR ≤ 0.05):", num_de_genes, "\n")
+
+# 4) Gene with the smallest (raw) p-value
+most_de_gene <- names(which.min(pvals))
+cat("Most differentially expressed gene by p-value:", most_de_gene, "\n")
+
 ```
+
