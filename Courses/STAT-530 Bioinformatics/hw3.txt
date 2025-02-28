@@ -1,0 +1,160 @@
+####################
+Instructions:
+####################
+Each question is worth 2 points. You can use whatever resources you'd like, including AI. In my experience, AI-generated answers will be correct, but very broad and general. You will get 1 point if your answer is correct and 2 points if your answer clearly demonstrates true understanding of this specific paper and biological context.
+
+Formulate each of the biological questions below into a statistical analysis. It's okay if your formulation differs from the analysis that was actually performed in the paper. For some of the questions, the analysis perdoneformed in the paper may not be optimal or complete.
+
+####################
+Question 1 (10 points)
+####################
+In lecture we discussed the analysis of the question "What genes become up- and down-regulated in as a result of spatial object recognition (SOR) training?" Formulate this as a statistical analysis.
+
+a. What is the unit of replication? (2 points)
+
+- The unit of replication is each individual mouse, not each gene or sequencing spot, because we are comparing gene expression on average between trained (SOR) and control mice.
+
+b. What are the features of interest? (2 points)
+
+- The features of interest are the measured expression levels of genes (like how many RNA copies are present), which tell us which genes are turned “on” or “off” after SOR training.
+
+c. Which, if any, of these features are not directly observed? (2 points)
+
+- We do not directly observe whether a gene is actually up- or down-regulated; instead, we measure read counts (RNA levels) and use statistics to infer gene activity
+
+d. Frame this analysis as a decomposition of variance: identify the dependent variable(s) and the independent variable(s). (2 points)
+
+- Dependent variable: Gene expression levels (RNA counts per gene).
+- Independent variable: Treatment condition (SOR-trained vs. homecage control), possibly adjusted for batch effects or mouse ID.
+
+e. What is one possible confounder of this analysis that has not been taking into account? (2 points)
+
+- A potential confounder is circadian timing (time of day brains were collected), since gene expression naturally fluctuates throughout the day, potentially distorting results.
+
+####################
+Question 2 (10 points)
+####################
+In lecture we discussed the analysis of the question "What biological processes are involved in SOR training?" Suppose you test each mouse gene for differential expression due to SOR training and obtain an uncorrected p-value for each gene. Next, suppose you have a list of mouse genes involved in biological process "nuclear receptor activity". Formulate a statistical analysis to determine whether the nuclear receptor activity is active in the transcriptomic response to SOR training.
+
+a. What is the unit of replication? (2 points)
+
+- Each mouse is the unit of replication because we analyze transcriptomic changes across hippocampal regions in determining if nuclear receptor genes are responding to SOR training.
+
+b. What are the features of interest? (2 points)
+
+- The features of interest are the differential expression statistics (fold change, p-values, t-statistics) of genes, specifically those linked to the "nuclear receptor activity" function.
+
+c. Which, if any, of these features are not directly observed? (2 points)
+
+- We do not directly observe whether the nuclear receptor pathway is activated; instead, we only see changes in individual gene expression levels, and from that, we infer whether the pathway is engaged.
+
+d. Frame this analysis as a decomposition of variance: identify the dependent variable(s) and the independent variable(s). (2 points)
+
+- Dependent variable: Differential expression values (fold changes, p-values) for genes in the nuclear receptor set.
+- Independent variable: SOR training status (trained vs. control) and whether a gene belongs to the nuclear receptor gene set
+
+e. What is one possible confounder of this analysis that has not been taking into account? (2 points)
+
+- A major confounder is baseline expression bias, where nuclear receptor genes might naturally have higher or lower expression, making it seem like they change more (or less) than they actually do
+
+####################
+Question 3 (10 points)
+####################
+In lecture we discussed the analysis of the question "How consistent are the pseudobulk and bulk RNA-seq results?" Suppose you can obtain a log-fold change for differential expression due to SOR training for each mouse gene from the pseudobulk spatial transcriptomics data as well as the bulk RNA-seq data. Formulate a statistical analysis to use these log-fold changes to determine the extent to which the results from the two experimental modalities are consistent.
+
+a. What is the unit of replication? (2 points)
+
+- Each gene is the unit of replication. For every gene, we have: (1)A pseudobulk-based logFC estimate (2)A bulk-based logFC estimate
+
+b. What are the features of interest? (2 points)
+
+- The features of interest are the two log-fold-change values (pseudobulk vs. bulk) obtained for each gene under SOR training. Specifically: (1)logFC_pseudo(g) (2)logFC_bulk(𝑔)
+
+c. Which, if any, of these features are not directly observed? (2 points)
+
+- we do not directly observe the true logFC for both pseudobulk and bulk, they are inefficient estimates of the actual fold change, also, the raw data measure counts or transcripts, and the logFC is an inferred statistic based on modeling or statistical tests.
+
+d. Frame this analysis as a decomposition of variance: identify the dependent variable(s) and the independent variable(s). (2 points)
+
+- A simple approach is to treat one method’s logFC as dependent and the other’s as independent, for instance: Dependent variable: logFC_pseudo(𝑔)Independent variable: logFC_bulk(𝑔)
+​we can fit a linear model to gauge how much variation in pseudobulk logFC is explained by bulk logFC.
+
+e. What is one possible confounder of this analysis that has not been taking into account? (2 points)
+
+- A key confounder is the baseline gene expression level (or gene detection frequency) i.e genes with extremely low expression often yield more variable or biased logFC estimates, which might weaken the observed consistency between the two modalities if not controlled for.
+
+####################
+Question 4 (10 points)
+####################
+In lecture we discussed the analysis of the question "To what extent are spatially distinct subregions of the hippocampus also transcriptionally distinct?" Formulate this as a statistical analysis.
+
+a. What is the unit of replication? (2 points)
+
+- Each mouse is the fundamental unit of replication, because we want to make inferences about differences in gene expression across biological replicates, we've selected distinct “spots” or “pseudobulk” per subregion within each mouse, but the final analysis still treats each mouse’s subregions as replicates
+
+b. What are the features of interest? (2 points)
+
+- The features are the gene expression measurements (read counts or normalized values) tied to each hippocampal subregion (CA1, CA2+CA3, DG, plus stratum oriens/radiatum if relevant) which can be summarized as spot-level or subregion-level gene expression profiles across thousands of genes.
+
+c. Which, if any, of these features are not directly observed? (2 points)
+
+- We do not directly observe a subregion’s “true” transcriptional signature, instead we measure raw RNA counts (through 10x Visium or bulk RNA-seq) and derive expression estimates or pseudobulk profiles which clearly slates the underlying distinctness of each region’s transcriptome is a latent concept inferred from observed readouts.
+
+d. Frame this analysis as a decomposition of variance: identify the dependent variable(s) and the independent variable(s). (2 points)
+
+- Dependent variable: The gene expression profile (or a dimension-reduced summary, like principal components) for each subregion.
+- Independent variable: Subregion identity (e.g., CA1, CA2+CA3, DG).
+
+e. What is one possible confounder of this analysis that has not been taking into account? (2 points)
+
+- Differences in cell types and their amounts across hippocampal subregions, like CA1 and DG, can affect gene expression and create false differences, making it harder to tell if the changes are due to actual neural activity or just the types of cells present.
+
+####################
+Question 5 (10 points)
+####################
+In lecture we discussed the analysis of the question "What genes and processes are involved in the different spatial subregions due to SOR training?" Formulate a statistical analysis to determine which genes are involved.
+
+a. What is the unit of replication? (2 points)
+
+- The unit of replication is each mouse, as the goal is to compare gene expression differences across distinct animals, with multiple spots or pseudobulk sections per mouse serving as within-subject measurements.
+
+b. What are the features of interest? (2 points)
+
+- The features of interest are gene expression levels (e.g., normalized counts) per hippocampal subregion (CA1, CA2/CA3, DG) and the differential expression of genes when comparing SOR-trained versus control mice within each subregion.
+
+c. Which, if any, of these features are not directly observed? (2 points)
+
+- The features not directly observed include the true biological necessity of genes in driving SOR-induced changes, as we only measure RNA-seq counts or spot intensities and infer gene involvement through statistical tests.
+
+d. Frame this analysis as a decomposition of variance: identify the dependent variable(s) and the independent variable(s). (2 points)
+
+- The dependent variable is gene expression (counts or log-transformed values), while the independent variables include subregion identity (e.g., CA1, CA2/CA3, DG), SOR training condition (trained vs. control), and possibly an interaction term between subregion and SOR to assess whether training effects vary across regions
+
+e. What is one possible confounder of this analysis that has not been taking into account? (2 points)
+
+- A possible confounder is variation in cell-type composition across subregions, as differences in neuron and glia proportions may influence gene expression independently of SOR training effects.
+
+####################
+Question 6 (10 points)
+####################
+In lecture we discussed the analysis of the question "What cells types in the dorsal hippocampus are responsible for upregulation of Sgk1 after learning?" Formulate this as a statistical analysis.
+
+a. What is the unit of replication? (2 points)
+
+-The unit of replication is each mouse, as the analysis aims to infer gene expression differences across animals, with thousands of single nuclei per sample serving as within-sample measurements, but the statistical replicate is each mouse’s hippocampus in control vs. SOR-trained conditions.
+
+b. What are the features of interest? (2 points)
+
+ - The features of interest include cell type labels (e.g., oligodendrocytes, excitatory neurons) identified through single-nuclei clustering and Sgk1 expression levels within each cell type, measured as either mean expression per cell type or the fraction of Sgk1-positive nuclei.
+
+c. Which, if any, of these features are not directly observed? (2 points)
+
+- The features not directly observed include the true identity of each cell type, which is computationally inferred from marker genes rather than directly measured, and the actual upregulation of Sgk1, which is inferred statistically from RNA read counts mapped to Sgk1 rather than directly observed.
+
+d. Frame this analysis as a decomposition of variance: identify the dependent variable(s) and the independent variable(s). (2 points)
+
+-The dependent variable is Sgk1 expression (counts or log-transformed values) at the single-nucleus level or aggregated per cell type, while the independent variables include cell type identity (e.g., excitatory neuron, oligodendrocyte), SOR training condition (trained vs. control), and possibly an interaction term (cell type × condition) to determine which specific cell types show increased Sgk1 expression due to learning.
+
+e. What is one possible confounder of this analysis that has not been taking into account? (2 points)
+
+- A key confounder is differential cell capture rates across conditions and subregions, as some cell types may be over- or under-represented due to biological or technical biases, potentially skewing the observed Sgk1 expression differences unless corrected using regression models or adjustments for cell capture efficiency.

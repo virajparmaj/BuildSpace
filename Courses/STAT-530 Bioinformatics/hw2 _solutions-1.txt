@@ -1,0 +1,97 @@
+####################
+Instructions:
+####################
+Read the paper by Vanrobaeys et al. (2023) (https://www.nature.com/articles/s41467-023-41715-7 and available on Canvas), and answer the following questions in ONE SENTENCE. Write your answer directly into this text document below each question.
+
+Each question is worth 2 points. You can use whatever resources you'd like, including AI. In my experience, AI-generated answers will be correct, but very broad and general. You will get 1 point if your answer is correct and 2 points if your answer clearly demonstrates true understanding of this specific paper and biological context.
+
+####################
+Question 1 (4 points)
+####################
+In lecture we talked about how the main question of this paper is to understand the "activity-driven spatial transcriptomic diversity within the hippocampal network".
+
+a. Why is this important? (2 points)
+
+It can help us understand how memories are physically written into the brain.
+
+b. What major issues with previous studies into this topic are addressed by this study? (2 points)
+
+Previous studies only looked at specific genes but this one looks at all genes (takes an unbiased approach).
+
+####################
+Question 2 (4 points)
+####################
+In lecture we discussed the analysis of the question "What genes become up- and down-regulated as a result of spatial object recognition (SOR) training?"
+
+a. Summarize the results of this analysis. (2 points)
+
+101 genes were significantly up-regulated and 18 were significantly down-regulated.
+
+b. Given the results, suggest a new biological question that would be meaningful. (2 points)
+
+How similar are these DEGs to those that might be involved in consolidation of a different type of (non-spatial) memory?
+
+####################
+Question 3 (4 points)
+####################
+In lecture we discussed the analysis of the question "What biological processes are involved in SOR training?"
+
+a. Summarize the results of this analysis. (2 points)
+
+Multiple processes, including nuclear receptor and nucleotide transmembrane transporter activity, were found to be involved.
+
+b. Given the results, suggest a new biological question that would be meaningful. (2 points)
+
+These processes are very generic, how can they be involved in such a specific mechanism of memory consolidation?
+
+####################
+Question 4 (4 points)
+####################
+In lecture we discussed the analysis of the question "How consistent are the pseudobulk and bulk RNA-seq results?"
+
+a. Summarize the results of this analysis. (2 points)
+
+They are statistically significantly consistent.
+
+b. Given the results, suggest a new biological question that would be meaningful. (2 points)
+
+The results are still pretty different, which one should we trust?
+
+####################
+Question 5 (4 points)
+####################
+In lecture we discussed the analysis of the question "To what extent are spatially distinct subregions of the hippocampus also transcriptionally distinct?"
+
+a. Summarize the results of this analysis. (2 points)
+
+Different physical regions appear far apart on a UMAP based on their transcriptional profiles.
+
+b. Given the results, suggest a new biological question that would be meaningful. (2 points)
+
+Why were the stratum radiatum and the stratum oriens previously identified as separate regions if the transcriptomic difference between them is not that big?
+
+####################
+Question 6 (4 points)
+####################
+In lecture we discussed the analysis of the question "What genes and processes are involved in the different spatial subregions due to SOR training?"
+
+a. Summarize the results of this analysis. (2 points)
+
+There were 46, 13, 68, 9, and 10 DEGs found in the CA1, CA2 + CA3, dentate gyrus, stratum oriens, and stratum radiatum, respectively.
+
+b. Given the results, suggest a new biological question that would be meaningful. (2 points)
+
+Is the dentate gyrus especially active during memory consolidation?
+
+####################
+Question 7 (4 points)
+####################
+In lecture we discussed the analysis of the question "What cells types in the dorsal hippocampus are responsible for upregulation of Sgk1 after learning?"
+
+a. Summarize the results of this analysis. (2 points)
+
+Oligodendrocytes seemed to be especially active.
+
+b. Given the results, suggest a new biological question that would be meaningful. (2 points)
+
+Are oligodendrocytes especially numerous in the CA1?
