@@ -1,0 +1,54 @@
+---
+title: "STAT 530 Homework 5"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Insructions
+
+You may use any packages you'd like. Some analyses are most easily done without packages. In these cases you will need to formulate the problem correctly, by identifying the population, the features, the question type, etc.
+
+## Problem 1 (6 points)
+
+Read Vanrobaeys et al. (2023) and determine how to download the Visium data. Create a "pseudobulk" sample from each mouse by adding the expression values from all of the spots. We don't have information about which Visium spots the authors used in their analyses, so for simplicity we will use all of the spots.
+
+a. Load the data into R and report how many genes (1 point) and samples (1 point) there are in this dataset.
+
+    Solution.
+
+b. Use the bulk RNA-seq analysis Bioconductor package edgeR to filter out genes. Keep only genes with at least 10 reads in at least one sample. Then report how many genes are up- (1 point) and down- (1 point) regulated as a result of spatial object recognition (SOR) training, at an FDR of 0.05 and a log-fold change cutoff of 0.5. Also report up to the top 5 most up- (1 point) and down- (1 point) regulated genes, ranked by log-fold change.
+
+    Solution.
+
+# Problem 2 (2 points)
+
+Use the Bioconductor package clusterProfiler to determine the top 5 GO molecular function terms enriched in the up- (1 point) and down- (1 point) regulated. Report the biological descriptions.
+
+Solution.
+
+
+# Problem 3 (1 point)
+
+Test for differential expression of each gene using the bulk sequencing data in the file "GSE223066_tximport-counts_learning1.txt". For simplicity, round the values in the file to the nearest integer for use with edgeR. Report the top 5 genes with the smallest p-values. (1 point)
+
+Solution.
+
+
+# Problem 4 (3 points)
+
+In lecture we discussed the analysis of the question "How consistent are the pseudobulk and bulk RNA-seq results?" Above, you obtained log-fold changes for differential expression due to SOR training for each mouse gene from the pseudobulk spatial transcriptomics data as well as the bulk RNA-seq data. 
+
+a. Convert all gene IDs from symbols to Ensembl IDs. For simplicity, drop symbols that map to more than one Ensembl ID. Report the number of symbols that appear in both the pseudobulk and bulk experiments (1 point).
+
+    Solution.
+
+b. Formulate a statistical analysis to use the log-fold changes of the shared Ensembl IDs to determine the extent to which the results from the two experimental modalities are consistent (1 point).
+
+    Solution.
+    
+c. Produce a visualization of your analysis (1 point).
+
+    Solution.
