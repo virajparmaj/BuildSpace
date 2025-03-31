@@ -1,0 +1,271 @@
+---
+title: "STAT 530 Homework 6"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+You may use any packages you'd like. Some analyses are most easily done without packages. In these cases you will need to formulate the problem correctly, by identifying the population, the features, the question type, etc.
+
+## Problem 1 (3 points)
+
+In Homework 5 you analyzed pseudobulk RNA-seq data from Vanrobaeys et al. (2023). Given a set of gene lists, where each list corresponded to a known biological process, you were able to determine whether each process played a role in molecular mechanisms of memory consolidation after spatial object recognition (SOR) training.
+
+Now suppose that you think there are two main underlying factors that drive the gene patterns you see, similar to the biological processes you identified before, but you don't know exactly how the factors are defined. These factors may not be present in any existing set of gene lists. Furthermore, it is likely that these factors are not only differentially active in control mice versus those that received SOR training, they may also be defined slightly differently in the two groups. In other words, each process may involve very slightly different sets of genes in one group of mice versus the other, and to slightly different degrees.
+
+```{r}
+library(Seurat)
+library(hdf5r)
+
+```
+
+
+```{r}
+# Make a small data frame that knows each sample's folder name
+# and whether it's "HC" or "SOR"
+sample_info <- data.frame(
+  sample_id = c("Sample1SOR","Sample2SOR","Sample3SOR",
+                "Sample4SOR","Sample5HC","Sample6HC",
+                "Sample7HC","Sample8HC","Sample9HC",
+                "Sample10SOR","Sample13HC","Sample14SOR",
+                "Sample15HC","Sample16SOR"),
+  group     = c("SOR","SOR","SOR",
+                "SOR","HC","HC",
+                "HC","HC","HC",
+                "SOR","HC","SOR",
+                "SOR","HC"),
+  stringsAsFactors = FALSE
+)
+```
+
+```{r}
+# Create a Matrix of Pseudobulk Counts
+
+
+# We'll initialize an empty list to hold each sample's pseudobulk vector.
+pseudo_list <- list()
+
+for(i in seq_len(nrow(sample_info))) {
+
+  folder_name  <- sample_info$sample_id[i]
+  group_label  <- sample_info$group[i]
+  h5_filepath  <- file.path(folder_name, "filtered_feature_bc_matrix.h5")
+
+  # a) Read the 10X HDF5 file
+  #    Read10X_h5() returns a sparse matrix with genes as rows
+  #    and spots (barcodes) as columns.
+  counts_mat <- Read10X_h5(h5_filepath)
+  
+
+  # b) Sum across all spots for each gene to get pseudobulk
+  #     'counts_mat' is typically gene x spot, so rowSums() sums across columns
+  pb_vector <- Matrix::rowSums(counts_mat)
+
+  # c) Store in a list; name it by sample
+  pseudo_list[[ folder_name ]] <- pb_vector
+}
+
+# d) Combine each pseudobulk vector into a matrix: row = gene, col = sample
+
+all_genes <- rownames(pseudo_list[[1]]) 
+# Build a matrix with rownames = genes
+pseudo_matrix <- do.call(cbind, pseudo_list)
+
+# Optional: rename columns to something friendlier
+colnames(pseudo_matrix) <- sample_info$sample_id
+```
+
+
+a. Propose a way to construct these factors (1 point).
+
+    *Solution.*
+
+We can take the pseudobulk gene-expression matrix (genes x samples),
+restrict to the top 500 most variable genes, and use a dimensionality-
+reduction method such as PCA or factor analysis to extract two latent
+factors. Each factor then corresponds to a major axis of variation.
+
+```{r}
+# 1) Suppose 'pseudo_matrix' is the full G x N matrix (G genes, N samples):
+#    rows = genes, cols = samples.
+
+# 2) Filter to top 500 most variable genes
+gene_vars <- apply(pseudo_matrix, 1, var)
+top_idx   <- order(gene_vars, decreasing=TRUE)[1:500]
+expr_top  <- pseudo_matrix[top_idx, ]   # 500 x 14
+
+# 3) (Optional) Row-wise standardization
+expr_scaled <- t(scale(t(expr_top)))    # each row: mean=0, sd=1
+
+# 4) Perform PCA to extract two factors
+#    prcomp() wants samples in rows, so we transpose
+pca_out <- prcomp(t(expr_scaled), center=FALSE, scale.=FALSE)
+
+# Perform PCA on scaled expression data to get two latent factors
+pca_out <- prcomp(t(expr_scaled), center=FALSE, scale.=FALSE)
+
+```
+
+```{r}
+# PCA explained variance (scree plot)
+explained_variance <- (pca_out$sdev)^2 / sum(pca_out$sdev^2)
+
+# Scree plot of variance explained by top PCs
+barplot(explained_variance[1:10]*100, 
+        main="Variance Explained by PCA Factors",
+        xlab="Principal Components",
+        ylab="Variance Explained (%)",
+        col="skyblue")
+
+```
+
+
+
+b. Given a constructed process, propose a way to test for differential activity between the groups of mice (1 point).
+
+    *Solution.*
+   
+For each factor (PC1, PC2), we can compare the factor scores
+between SOR and HC groups using a simple two-sample t-test or a linear
+model. A significant difference indicates differential activity.
+
+```{r}
+# Create a factor_scores matrix for the first 2 PCs
+factor_scores <- pca_out$x[, 1:2]
+colnames(factor_scores) <- c("Factor1", "Factor2")
+
+# Define group factor from sample_info
+# (Make sure sample order matches columns in pseudo_matrix)
+# If your columns in pseudo_matrix are in the same order as rows in sample_info,
+# you can do:
+group <- sample_info$group
+
+# Two-sample t-tests
+test_factor1 <- t.test(factor_scores[,"Factor1"] ~ group)
+test_factor2 <- t.test(factor_scores[,"Factor2"] ~ group)
+```
+
+```{r}
+# Boxplots comparing factor scores between groups
+par(mfrow=c(1,2))
+
+# Factor 1 boxplot
+boxplot(factor_scores[, "Factor1"] ~ group, 
+        main="Factor 1 Scores by Group", 
+        ylab="Factor 1 Score", 
+        col=c("lightblue", "lightgreen"))
+
+# Factor 2 boxplot
+boxplot(factor_scores[, "Factor2"] ~ group, 
+        main="Factor 2 Scores by Group", 
+        ylab="Factor 2 Score", 
+        col=c("lightblue", "lightgreen"))
+
+par(mfrow=c(1,1))
+
+```
+
+
+c. Given a constructed process, propose a way to understand what the factors do biologically (1 point).
+
+    *Solution.*
+    
+    Each factor can be interpreted biologically by examining its top‐loading genes and checking for over‐representation of known pathways or processes. We typically do this via tools like clusterProfiler to look for GO/KEGG enrichment among the top loadings.
+    
+```{r}
+# Look at loadings for the top 2 PCs
+loadings_2 <- pca_out$rotation[, 1:2]   # 500 x 2
+
+# Identify top genes for Factor1 (largest absolute loadings)
+factor1_abs <- sort(abs(loadings_2[,1]), decreasing=TRUE)
+top_genes_factor1 <- names(factor1_abs)[1:30]
+
+# Similarly for Factor2
+factor2_abs <- sort(abs(loadings_2[,2]), decreasing=TRUE)
+top_genes_factor2 <- names(factor2_abs)[1:30]
+```
+
+```{r}
+library(clusterProfiler)
+library(org.Mm.eg.db)
+
+# Suppose 'top_genes_factor1' is a character vector of gene SYMBOLs
+# Convert symbols -> Entrez IDs (or use keyType = "SYMBOL" directly)
+# For example:
+ego_factor1 <- enrichGO(
+  gene          = top_genes_factor1,
+  OrgDb         = org.Mm.eg.db,
+  keyType       = "SYMBOL",
+  ont           = "BP",            # or "MF" or "CC"
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05
+)
+
+# Inspect top enriched GO terms
+head(ego_factor1)
+
+```
+```{r}
+# Top genes for Factor2 (largest absolute loadings)
+loadings_2 <- pca_out$rotation[, 1:2]
+top_genes_factor2 <- names(sort(abs(loadings_2[,2]), decreasing=TRUE))[1:30]
+
+# GO enrichment analysis for Factor 2 using clusterProfiler
+ego_factor2 <- enrichGO(
+  gene          = top_genes_factor2,
+  OrgDb         = org.Mm.eg.db,
+  keyType       = "SYMBOL",
+  ont           = "BP",            
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05
+)
+head(ego_factor2)
+```
+
+
+d. Carry out your proposed method and report what factors you find (1 point). You will first need to reduce the number of genes, because otherwise this optimization will take too much time and memory. Only consider the top 500 most variable genes.
+
+    *Solution.*
+    
+    
+    The PCA shows Factor1 explains about 59% of total variance and Factor2 explains ~21%. Neither factor was significantly different between SOR and HC (p‐values ~0.49 and ~0.31), suggesting these axes do not capture SOR vs. HC differences; the top genes for Factor1 (e.g. Atp5c1, Ndufa8) are mostly mitochondrial/ATP‐related, while Factor2’s top genes (e.g. Gnb1, Kif1a) relate to cytoskeleton or intracellular transport.
+    
+```{r}
+# 1) Print how much variance Factor1 & Factor2 explain
+var_explained <- (pca_out$sdev^2 / sum(pca_out$sdev^2))[1:2] * 100
+cat("Factor1 explains:", round(var_explained[1],2), "%\n")
+cat("Factor2 explains:", round(var_explained[2],2), "%\n")
+
+# 2) Print t-test results
+cat("\nDifferential Activity Tests:\n")
+print(test_factor1)
+print(test_factor2)
+
+# 3) Print top genes by loadings
+cat("\nTop 5 Genes for Factor1:\n")
+print(head(top_genes_factor1, 5))
+
+cat("\nTop 5 Genes for Factor2:\n")
+print(head(top_genes_factor2, 5))
+```
+
+
+e. Do the factors you find make biological sense? Justify your answer (1 point).
+
+    *Solution.*
+    
+    These two factors likely reflect fundamental metabolic and transport processes in the hippocampus rather than a memory‐specific effect, given the non‐significant t‐test results. In other words, they do make biological sense (they have coherent functional themes) but they do not appear to be altered in SOR vs. HC animals.
+    
+- Factor 1 (58.77% variance) clearly captures mitochondrial processes (oxidative phosphorylation, cellular respiration), strongly supported by enriched GO terms (p < 1e-12) and top genes such as Atp5c1, Ndufa8, and Atp5o, involved in energy metabolism. Despite no significant difference between groups (p = 0.488), its biological meaning is evident and stable across conditions.
+
+- Factor 2 (21.44% variance) represents neuronal signaling and synaptic function, evidenced by enriched GO terms like synaptic vesicle cycle and neurotransmitter transport (p < 1e-6), and top genes such as Gnb1, Kif1a, and Arf3. Similarly, no significant differential activity was found (p = 0.308), suggesting stable synaptic processes in both experimental conditions.
+
+Both factors clearly have biologically meaningful interpretations relevant to hippocampal function and memory consolidation.

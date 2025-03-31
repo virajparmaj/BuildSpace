@@ -1,6 +1,8 @@
 ---
 title: "STAT 530 Homework 5"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -15,19 +17,186 @@ You may use any packages you'd like. Some analyses are most easily done without 
 
 Read Vanrobaeys et al. (2023) and determine how to download the Visium data. Create a "pseudobulk" sample from each mouse by adding the expression values from all of the spots. We don't have information about which Visium spots the authors used in their analyses, so for simplicity we will use all of the spots.
 
+```{r}
+library(Seurat)      # For Read10X_h5()
+library(edgeR)       # For differential expression
+library(dplyr)       # For simple data handling
+library(tibble)
+```
+
+```{r}
+# Make a small data frame that knows each sample's folder name
+# and whether it's "HC" or "SOR"
+sample_info <- data.frame(
+  sample_id = c("Sample1SOR","Sample2SOR","Sample3SOR",
+                "Sample4SOR","Sample5HC","Sample6HC",
+                "Sample7HC","Sample8HC","Sample9HC",
+                "Sample10SOR","Sample13HC","Sample14SOR",
+                "Sample15HC","Sample16SOR"),
+  group     = c("SOR","SOR","SOR",
+                "SOR","HC","HC",
+                "HC","HC","HC",
+                "SOR","HC","SOR",
+                "SOR","HC"),
+  stringsAsFactors = FALSE
+)
+```
+
+```{r}
+# Create a Matrix of Pseudobulk Counts
+
+
+# We'll initialize an empty list to hold each sample's pseudobulk vector.
+pseudo_list <- list()
+
+for(i in seq_len(nrow(sample_info))) {
+
+  folder_name  <- sample_info$sample_id[i]
+  group_label  <- sample_info$group[i]
+  h5_filepath  <- file.path(folder_name, "filtered_feature_bc_matrix.h5")
+
+  # a) Read the 10X HDF5 file
+  #    Read10X_h5() returns a sparse matrix with genes as rows
+  #    and spots (barcodes) as columns.
+  counts_mat <- Read10X_h5(h5_filepath)
+  
+
+  # b) Sum across all spots for each gene to get pseudobulk
+  #     'counts_mat' is typically gene x spot, so rowSums() sums across columns
+  pb_vector <- Matrix::rowSums(counts_mat)
+
+  # c) Store in a list; name it by sample
+  pseudo_list[[ folder_name ]] <- pb_vector
+}
+
+# d) Combine each pseudobulk vector into a matrix: row = gene, col = sample
+
+all_genes <- rownames(pseudo_list[[1]]) 
+# Build a matrix with rownames = genes
+pseudo_matrix <- do.call(cbind, pseudo_list)
+
+# Optional: rename columns to something friendlier
+colnames(pseudo_matrix) <- sample_info$sample_id
+```
+
 a. Load the data into R and report how many genes (1 point) and samples (1 point) there are in this dataset.
 
     Solution.
+    
+```{r}
+num_genes   <- nrow(pseudo_matrix)
+num_samples <- ncol(pseudo_matrix)
+
+cat("a) Number of genes in dataset:", num_genes, "\n")
+cat("   Number of samples in dataset:", num_samples, "\n")
+```
+    
 
 b. Use the bulk RNA-seq analysis Bioconductor package edgeR to filter out genes. Keep only genes with at least 10 reads in at least one sample. Then report how many genes are up- (1 point) and down- (1 point) regulated as a result of spatial object recognition (SOR) training, at an FDR of 0.05 and a log-fold change cutoff of 0.5. Also report up to the top 5 most up- (1 point) and down- (1 point) regulated genes, ranked by log-fold change.
 
     Solution.
+    
+```{r}
+# b) Filter out genes with <10 reads in every sample
+group_factor <- factor(sample_info$group, levels = c("HC","SOR"))
+dge <- DGEList(counts = pseudo_matrix, group = group_factor)
+
+# Keep only genes with >=10 reads in at least 1 sample
+keep <- rowSums(dge$counts >= 10) >= 1
+dge_filtered <- dge[keep, , keep.lib.sizes = FALSE]
+
+# Recalculate library sizes and normalization factors
+dge_filtered <- calcNormFactors(dge_filtered)
+cat("After filtering, number of genes remaining:", nrow(dge_filtered), "\n")
+
+```
+```{r}
+# c) DE analysis (SOR vs HC) with a simple design
+design <- model.matrix(~ group_factor)  # group_factor: c("HC","SOR")
+dge_filtered <- estimateDisp(dge_filtered, design)
+fit <- glmFit(dge_filtered, design)
+
+# Likelihood ratio test for the SOR vs HC effect (coefficient = 2)
+lrt <- glmLRT(fit, coef = 2)
+de_table <- topTags(lrt, n=Inf)$table
+# Add gene names as a column
+de_table$Gene <- rownames(de_table)
+
+# Define threshold for significance: FDR<=0.05, |logFC|>=0.5
+sig_cut   <- 0.05
+logFC_cut <- 0.5
+
+sig <- de_table[ de_table$FDR <= sig_cut & abs(de_table$logFC) >= logFC_cut, ]
+
+up_genes   <- sig[ sig$logFC >=  logFC_cut, ]
+down_genes <- sig[ sig$logFC <= -logFC_cut, ]
+
+cat("Number of up-regulated genes at FDR=0.05 & |logFC|>=0.5:", nrow(up_genes), "\n")
+cat("Number of down-regulated genes at FDR=0.05 & |logFC|>=0.5:", nrow(down_genes), "\n")
+
+```
+```{r}
+# d) Report up to the top 5 by log-fold change
+# Sort by decreasing logFC for ups, and by increasing logFC for downs
+
+top5_up <- up_genes[order(up_genes$logFC, decreasing=TRUE), ]
+top5_up <- head(top5_up, 5)
+
+top5_down <- down_genes[order(down_genes$logFC, decreasing=FALSE), ]
+top5_down <- head(top5_down, 5)
+
+cat("\nTop 5 Upregulated Genes:\n")
+print(top5_up[, c("Gene","logFC","PValue","FDR")], row.names = FALSE)
+
+cat("\nTop 5 Downregulated Genes:\n")
+print(top5_down[, c("Gene","logFC","PValue","FDR")], row.names = FALSE)
+
+```
+
+  
 
 # Problem 2 (2 points)
 
 Use the Bioconductor package clusterProfiler to determine the top 5 GO molecular function terms enriched in the up- (1 point) and down- (1 point) regulated. Report the biological descriptions.
 
 Solution.
+
+```{r}
+library(clusterProfiler)
+library(org.Mm.eg.db)  # Mouse
+
+up_gene_symbols   <- up_genes$Gene
+down_gene_symbols <- down_genes$Gene
+
+ego_up <- enrichGO(
+  gene          = up_gene_symbols,
+  OrgDb         = org.Mm.eg.db,
+  keyType       = "SYMBOL",
+  ont           = "MF",
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05
+)
+
+ego_down <- enrichGO(
+  gene          = down_gene_symbols,
+  OrgDb         = org.Mm.eg.db,
+  keyType       = "SYMBOL",
+  ont           = "MF",
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.05
+)
+
+top5_up_mf   <- head(ego_up,   5)
+top5_down_mf <- head(ego_down, 5)
+
+cat("Top 5 GO MF terms enriched in UP-regulated genes:\n")
+print(as.data.frame(top5_up_mf)[, c("ID", "Description")])
+
+cat("\nTop 5 GO MF terms enriched in DOWN-regulated genes:\n")
+print(as.data.frame(top5_down_mf)[, c("ID", "Description")])
+```
 
 
 # Problem 3 (1 point)
@@ -36,19 +205,192 @@ Test for differential expression of each gene using the bulk sequencing data in 
 
 Solution.
 
+```{r}
+library(edgeR)
+library(dplyr)
+
+# Read counts data
+raw_df <- read.delim("GSE223066_tximport-counts_learning1.txt", header=TRUE, row.names="gene")
+
+# Round counts for edgeR
+counts <- round(as.matrix(raw_df))
+
+# Define sample groups clearly (assuming first 4 are HC, next 4 SOR)
+groups <- factor(rep(c("HC", "SOR"), each=4))
+
+# edgeR pipeline clearly in one streamlined section
+dge <- DGEList(counts, group=groups) %>%
+       .[rowSums(.$counts >= 10) >= 2, , keep.lib.sizes=FALSE] %>%
+       calcNormFactors() %>%
+       estimateDisp(model.matrix(~groups))
+
+fit <- glmFit(dge, model.matrix(~groups))
+lrt <- glmLRT(fit, coef=2)  # test groupSOR vs. groupHC directly
+
+# Get top 5 genes (smallest p-values)
+top5_genes <- topTags(lrt, n=5)$table
+print(top5_genes)
+
+```
+
 
 # Problem 4 (3 points)
 
 In lecture we discussed the analysis of the question "How consistent are the pseudobulk and bulk RNA-seq results?" Above, you obtained log-fold changes for differential expression due to SOR training for each mouse gene from the pseudobulk spatial transcriptomics data as well as the bulk RNA-seq data. 
 
+```{r}
+# This was your pseudobulk DE table:
+de_table$Gene <- rownames(de_table)  # 'Gene' are mouse symbols like "Sgk1", etc.
+
+# Rename for clarity:
+de_pseudo <- de_table
+
+```
+
+```{r}
+de_bulk <- topTags(lrt, n=Inf)$table
+de_bulk$Gene <- rownames(de_bulk)
+rownames(de_bulk) <- NULL
+
+```
+
 a. Convert all gene IDs from symbols to Ensembl IDs. For simplicity, drop symbols that map to more than one Ensembl ID. Report the number of symbols that appear in both the pseudobulk and bulk experiments (1 point).
 
     Solution.
+    
+```{r}
+library(org.Mm.eg.db)
+library(dplyr)
+
+
+# 1) Convert the pseudobulk DE table
+
+
+# `de_pseudo` has columns: Gene (symbol), logFC, FDR, ...
+# E.g. "Sgk1", "Arc", "Ctla2b", ...
+map_pseudo <- AnnotationDbi::select(
+  x       = org.Mm.eg.db,
+  keys    = de_pseudo$Gene,   # the symbols from your pseudobulk
+  columns = c("SYMBOL","ENSEMBL"),
+  keytype = "SYMBOL"
+)
+map_pseudo <- distinct(map_pseudo)
+
+# Drop any SYMBOL that maps to more than one ENSEMBL
+dups <- map_pseudo %>%
+  group_by(SYMBOL) %>%
+  filter(n() > 1) %>%
+  pull(SYMBOL) %>%
+  unique()
+
+map_pseudo_filtered <- filter(map_pseudo, !(SYMBOL %in% dups))
+
+# Merge with the original pseudobulk table
+de_pseudo_ens <- de_pseudo %>%
+  inner_join(map_pseudo_filtered, by=c("Gene"="SYMBOL")) 
+# This adds a new column "ENSEMBL" to each row
+
+
+# 2) Convert the bulk DE table
+
+
+# `de_bulk` has columns: Gene (Ensembl), logFC, FDR, ...
+# e.g. "ENSMUSG00000022602", etc.
+
+map_bulk <- AnnotationDbi::select(
+  x       = org.Mm.eg.db,
+  keys    = de_bulk$Gene,   # the Ensembl IDs from your bulk analysis
+  columns = c("SYMBOL","ENSEMBL"),
+  keytype = "ENSEMBL"
+)
+map_bulk <- distinct(map_bulk)
+
+# Drop any ENSEMBL ID that maps to multiple symbols
+dups_bulk <- map_bulk %>%
+  group_by(ENSEMBL) %>%
+  filter(n() > 1) %>%
+  pull(ENSEMBL) %>%
+  unique()
+
+map_bulk_filtered <- filter(map_bulk, !(ENSEMBL %in% dups_bulk))
+
+# Merge with the original bulk table
+de_bulk_ens <- de_bulk %>%
+  inner_join(map_bulk_filtered, by=c("Gene"="ENSEMBL"))
+# Now 'de_bulk_ens' has columns 'Gene' (the original Ensembl),
+# plus 'SYMBOL' from the mapping
+
+```
+```{r}
+pseudo_ids <- unique(de_pseudo_ens$ENSEMBL)
+bulk_ids   <- unique(de_bulk_ens$Gene)
+
+common_ens <- intersect(pseudo_ids, bulk_ids)
+length(common_ens)
+
+```
+
 
 b. Formulate a statistical analysis to use the log-fold changes of the shared Ensembl IDs to determine the extent to which the results from the two experimental modalities are consistent (1 point).
 
     Solution.
     
+```{r}
+library(dplyr)
+
+# --- Make sure these lines are run first ---
+common_ens <- intersect(de_pseudo_ens$ENSEMBL, de_bulk_ens$Gene)
+
+pseudo_common <- filter(de_pseudo_ens, ENSEMBL %in% common_ens)
+bulk_common   <- filter(de_bulk_ens, Gene %in% common_ens)
+
+# 1) Perform inner join by matching pseudo_common$ENSEMBL to bulk_common$Gene
+#    dplyr automatically disambiguates columns that share the same name
+#    (logFC in both tables) as logFC.x and logFC.y
+#    Note: We do NOT rename columns; we just specify the join condition:
+joined_result <- pseudo_common %>%
+  inner_join(bulk_common, by = c("ENSEMBL" = "Gene"))
+
+# 2) Pearson correlation test directly on the joined data frame columns
+pearson_test <- with(
+  joined_result,
+  cor.test(logFC.x, logFC.y, method = "pearson")
+)
+
+# Print Pearson results
+cat("Pearson correlation:\n")
+print(pearson_test)
+
+# 3) Spearman correlation test (optional, if you want rank-based correlation)
+spearman_test <- with(
+  joined_result,
+  cor.test(logFC.x, logFC.y, method = "spearman")
+)
+
+cat("\nSpearman correlation:\n")
+print(spearman_test)
+```
+    
+    
+    
+    
 c. Produce a visualization of your analysis (1 point).
 
     Solution.
+    
+```{r}
+library(ggplot2)
+
+ggplot(joined_result, aes(x = logFC.x, y = logFC.y)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(
+    x = "Pseudobulk logFC",
+    y = "Bulk logFC",
+    title = "Comparison of Log-Fold Changes\n(Pseudobulk vs. Bulk)"
+  ) +
+  theme_minimal()
+
+```
+    
+    

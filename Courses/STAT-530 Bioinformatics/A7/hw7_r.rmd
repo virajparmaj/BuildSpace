@@ -1,0 +1,48 @@
+---
+title: "STAT 530 Homework 7"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+You may use any packages you'd like. Some analyses are most easily done without packages. In these cases you will need to formulate the problem correctly, by identifying the population, the features, the question type, etc. Multiple answers are possible.
+
+Subregion identifiers are provided on Canvas.
+
+Export your solutions to HTML and submit the HTML file on Canvas.
+
+## Problem 1 (7 points)
+
+Are spatially distinct subregions of the hippocampus also transcriptionally distinct?
+
+a. What is the population of interest (1 point)?
+
+    *Solution.*
+
+b. What are the features of interest (1 point)?
+
+    *Solution.*
+
+c. Are there any vague features you need to construct proxies for (1 point)?
+
+    *Solution.*
+
+d. Describe the type of population parameter of interest, as in slide 3 of lecture 8 (1 point).
+
+    *Solution.*
+
+e. Identify the type of question, as in slide 3 of lecture 8 (1 point).
+
+    *Solution.*
+
+f. Answer the question and provide uncertainty quantification (1 point). Include all code.
+
+    *Solution.*
+
+g. Provide a visualization for your result (1 point).
+
+    *Solution.*
