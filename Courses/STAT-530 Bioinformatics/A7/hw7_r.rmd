@@ -22,27 +22,91 @@ Are spatially distinct subregions of the hippocampus also transcriptionally dist
 a. What is the population of interest (1 point)?
 
     *Solution.*
+    
+```{r}
+# List all .txt files from the folder (adjust the path as needed)
+files <- list.files(path = "C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A7/Data", 
+                    pattern = "\\.txt$", full.names = TRUE)
+
+# Read and combine them into one data frame
+big_df <- do.call(rbind, lapply(files, function(f) read.delim(f, header = TRUE, stringsAsFactors = FALSE)))
+print(dim(big_df))
+
+```
+    
 
 b. What are the features of interest (1 point)?
 
     *Solution.*
+    
+    
+```{r}
+colnames(big_df) <- c("CellName", "SampleName", "NumCells", "Condition", "Batch", 
+                      "BrainRegions", "BrainRegionsSCT", "HippocampalSubregions", 
+                      "RSCSubregions", "SecondaryAuditoryCortex", "WholeHippocampusCells", 
+                      "ExpressedGenes", "MitochondrialReadsPercent", "RibosomalReadsPercent", 
+                      "TotalCount")
+print(colnames(big_df))
+
+```
+    
 
 c. Are there any vague features you need to construct proxies for (1 point)?
 
     *Solution.*
+    
+```{r}
+hipp_df <- subset(big_df, BrainRegions == "Hippocampal region")
+print(table(hipp_df$HippocampalSubregions, useNA = "ifany"))
+
+```
+
+- “Transcriptional distinctness” is not directly measured; we lack a single, direct indicator for how different a cell’s transcriptome is.
+- We therefore use proxies—such as the number of expressed genes (the “ExpressedGenes” column) or derived metrics (e.g. PCA scores) that summarize overall gene expression—to represent the concept.
+- These proxies let us statistically compare the transcriptomic profiles across hippocampal subregions, even though the true “distinctness” is an abstract concept.
 
 d. Describe the type of population parameter of interest, as in slide 3 of lecture 8 (1 point).
 
     *Solution.*
+    
+- We are comparing a single feature—“ExpressedGenes”across multiple groups (the hippocampal subregions)
+
+- The population parameter of interest is essentially the distribution (or its central tendency, e.g., medians) of “ExpressedGenes” in each subregion
+
+- we want to know if the median (or mean) of “ExpressedGenes” differs among CA1, CA2+CA3, DG, etc.
 
 e. Identify the type of question, as in slide 3 of lecture 8 (1 point).
 
     *Solution.*
+    
+    - Given we have one feature (“ExpressedGenes”) and we are testing for differences among subregions, this is a Feature, Testing question. We are not modeling an association between variables; rather, we are testing whether the distribution of a single feature differs across multiple groups.
+    
+    - "Do hippocampal subregions exhibit distinct gene expression profiles?"
 
 f. Answer the question and provide uncertainty quantification (1 point). Include all code.
 
     *Solution.*
+    
+```{r}
+kw <- kruskal.test(ExpressedGenes ~ HippocampalSubregions, data = hipp_df)
+print(kw)
+
+```
+    
 
 g. Provide a visualization for your result (1 point).
 
     *Solution.*
+    
+```{r}
+library(ggplot2)
+ggplot(hipp_df, aes(x = HippocampalSubregions, y = ExpressedGenes)) +
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Expressed Genes by Hippocampal Subregion",
+       x = "Hippocampal Subregion",
+       y = "Expressed Genes")
+
+```
+    
+    
