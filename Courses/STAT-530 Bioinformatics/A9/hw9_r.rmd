@@ -1,0 +1,85 @@
+---
+title: "STAT 530 Homework 9"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+You may use any packages you'd like. Some analyses are most easily done without packages. In these cases you will need to formulate the problem correctly, by identifying the population, the features, the question type, etc. Multiple answers are possible.
+
+If you don't have enough RAM for this assignment you may need to remove objects from the R environment using the function `rm()`. You will then need to run garbage collection using the function `gc()` to free up memory.
+
+Export your solutions to HTML and submit the HTML file on Canvas.
+
+## Problem 1 (8 points)
+
+a. Load the snRNA-seq data from the HC1 and SOR1 samples. Remove multiplets (1 point) and cells with mitochondrial percentages greater than 10\% (1 point) and plot all cells on a UMAP colored by the sample of origin (1 point).
+
+    **Solution.**
+
+```{r}
+# Block 1: Load, Merge, Preprocess, and Remove Multiplets with scDblFinder
+
+# Install/load required packages
+if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+if (!requireNamespace("scDblFinder", quietly = TRUE)) {
+  BiocManager::install("scDblFinder")
+}
+if (!requireNamespace("Seurat", quietly = TRUE)) install.packages("Seurat")
+library(Seurat)
+library(SingleCellExperiment)
+library(scDblFinder)
+
+# Create Seurat objects for HC1 and SOR1
+hc1 <- CreateSeuratObject(
+  Read10X_h5("C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A9/HC1/HC1_filtered_feature_bc_matrix.h5"),
+  project = "HC1"
+)
+hc1$sample <- "HC1"
+
+sor1 <- CreateSeuratObject(
+  Read10X_h5("C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A9/SOR1/SOR1_filtered_feature_bc_matrix.h5"),
+  project = "SOR1"
+)
+sor1$sample <- "SOR1"
+
+# Merge both Seurat objects
+combined <- merge(hc1, y = sor1, add.cell.ids = c("HC1", "SOR1"))
+DefaultAssay(combined) <- "RNA"
+
+# Standard preprocessing
+combined <- NormalizeData(combined)
+combined <- FindVariableFeatures(combined)
+combined <- ScaleData(combined)
+combined <- RunPCA(combined, features = VariableFeatures(combined))
+combined <- FindNeighbors(combined, dims = 1:10)
+combined <- FindClusters(combined, resolution = 0.5)
+
+# Convert to SingleCellExperiment and run scDblFinder to identify doublets
+sce <- as.SingleCellExperiment(combined)
+sce <- scDblFinder(sce)
+table(sce$scDblFinder.class)  # Check classification counts
+
+# Subset out doublets
+combined[["scDblFinder.class"]] <- sce$scDblFinder.class
+combined <- subset(combined, subset = scDblFinder.class == "singlet")
+
+
+```
+
+
+b. Do you think batch correction is necessary (1 point)? Explain your reasoning (1 point).
+
+    **Solution.**
+
+c. For simplicity, don't perform batch correction for now. Identify the cluster where the gene Sgk1 is most differentially expressed between HC1 and SOR1, as quantified by the lowest p-value (1 point).
+
+    **Solution.**
+
+d. In which cell type is Sgk1 most differentially expressed (1 point)? Explain your reasoning (1 point).
+
+    **Solution.**
