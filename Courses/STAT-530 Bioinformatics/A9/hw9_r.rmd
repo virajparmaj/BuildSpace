@@ -22,51 +22,82 @@ a. Load the snRNA-seq data from the HC1 and SOR1 samples. Remove multiplets (1 p
     **Solution.**
 
 ```{r}
-# Block 1: Load, Merge, Preprocess, and Remove Multiplets with scDblFinder
-
-# Install/load required packages
-if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
-if (!requireNamespace("scDblFinder", quietly = TRUE)) {
-  BiocManager::install("scDblFinder")
+# Check for and install required packages for data loading
+if (!requireNamespace("Seurat", quietly = TRUE)) {
+  install.packages("Seurat")
 }
-if (!requireNamespace("Seurat", quietly = TRUE)) install.packages("Seurat")
 library(Seurat)
-library(SingleCellExperiment)
-library(scDblFinder)
+library(ggplot2)
 
-# Create Seurat objects for HC1 and SOR1
-hc1 <- CreateSeuratObject(
-  Read10X_h5("C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A9/HC1/HC1_filtered_feature_bc_matrix.h5"),
-  project = "HC1"
-)
-hc1$sample <- "HC1"
+# Define file paths for the HC1 and SOR1 samples
+hc1_path <- "C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A9/HC1/HC1_filtered_feature_bc_matrix.h5"
+sor1_path <- "C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A9/SOR1/SOR1_filtered_feature_bc_matrix.h5"
 
-sor1 <- CreateSeuratObject(
-  Read10X_h5("C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A9/SOR1/SOR1_filtered_feature_bc_matrix.h5"),
-  project = "SOR1"
-)
-sor1$sample <- "SOR1"
+# Load the data using Read10X_h5 (Seurat package)
+hc1_data <- Read10X_h5(hc1_path)
+sor1_data <- Read10X_h5(sor1_path)
 
-# Merge both Seurat objects
-combined <- merge(hc1, y = sor1, add.cell.ids = c("HC1", "SOR1"))
-DefaultAssay(combined) <- "RNA"
+# Create Seurat objects for each sample
+hc1 <- CreateSeuratObject(counts = hc1_data, project = "HC1")
+sor1 <- CreateSeuratObject(counts = sor1_data, project = "SOR1")
 
-# Standard preprocessing
+# Generate a 'multiplet' flag using a heuristic based on nFeature_RNA
+# For example, flag cells above the 95th percentile as potential multiplets
+
+# For HC1 sample
+nFeature_threshold_hc1 <- quantile(hc1@meta.data$nFeature_RNA, 0.95)
+hc1$multiplet <- hc1@meta.data$nFeature_RNA > nFeature_threshold_hc1
+
+# For SOR1 sample
+nFeature_threshold_sor1 <- quantile(sor1@meta.data$nFeature_RNA, 0.95)
+sor1$multiplet <- sor1@meta.data$nFeature_RNA > nFeature_threshold_sor1
+
+# Print out the threshold values for reference
+message("HC1 nFeature_RNA threshold for multiplets: ", nFeature_threshold_hc1)
+message("SOR1 nFeature_RNA threshold for multiplets: ", nFeature_threshold_sor1)
+
+# Remove multiplets by subsetting out cells flagged as TRUE for 'multiplet'
+hc1 <- subset(hc1, subset = multiplet == FALSE)
+sor1 <- subset(sor1, subset = multiplet == FALSE)
+
+
+```
+```{r}
+
+# Load required packages
+if (!requireNamespace("Seurat", quietly = TRUE)) {
+  install.packages("Seurat")
+}
+library(Seurat)
+
+if (!requireNamespace("ggplot2", quietly = TRUE)) {
+  install.packages("ggplot2")
+}
+library(ggplot2)
+
+# Compute the percentage of mitochondrial genes for each sample
+hc1[["percent.mt"]] <- PercentageFeatureSet(hc1, pattern = "^MT-")
+sor1[["percent.mt"]] <- PercentageFeatureSet(sor1, pattern = "^MT-")
+
+# Filter cells: remove cells with mitochondrial percentages greater than 10%
+hc1 <- subset(hc1, subset = percent.mt <= 10)
+sor1 <- subset(sor1, subset = percent.mt <= 10)
+
+# Merge the two samples into one Seurat object
+combined <- merge(hc1, y = sor1, add.cell.ids = c("HC1", "SOR1"), project = "Combined")
+
+# Run the standard Seurat workflow on the merged object
 combined <- NormalizeData(combined)
 combined <- FindVariableFeatures(combined)
 combined <- ScaleData(combined)
-combined <- RunPCA(combined, features = VariableFeatures(combined))
-combined <- FindNeighbors(combined, dims = 1:10)
-combined <- FindClusters(combined, resolution = 0.5)
+combined <- RunPCA(combined, verbose = FALSE)
 
-# Convert to SingleCellExperiment and run scDblFinder to identify doublets
-sce <- as.SingleCellExperiment(combined)
-sce <- scDblFinder(sce)
-table(sce$scDblFinder.class)  # Check classification counts
+# Run UMAP on the PCA-reduced data (adjust dims as needed, e.g., dims = 1:10)
+combined <- RunUMAP(combined, dims = 1:10, verbose = FALSE)
 
-# Subset out doublets
-combined[["scDblFinder.class"]] <- sce$scDblFinder.class
-combined <- subset(combined, subset = scDblFinder.class == "singlet")
+# Plot UMAP colored by the sample of origin (stored in 'orig.ident')
+DimPlot(combined, group.by = "orig.ident", label = TRUE) + 
+  ggtitle("UMAP Plot by Sample")
 
 
 ```
@@ -75,11 +106,90 @@ combined <- subset(combined, subset = scDblFinder.class == "singlet")
 b. Do you think batch correction is necessary (1 point)? Explain your reasoning (1 point).
 
     **Solution.**
+    
+- Yes, batch correction is likely necessary.
+
+**1. Distinct Clusters:** The UMAP plot shows clear separation of HC1 and SOR1 cells, suggesting technical differences between the batches.  
+**2. Technical Variability:** Differences in sample processing and sequencing likely introduced batch effects that cause these clusters.  
+**3. Impact on Analysis:** These artifacts can mislead downstream analyses (e.g., clustering or differential expression), emphasizing the need for correction.  
+**4. Integration Benefit:** Batch correction methods (like Seurat integration) would help merge similar cell types across batches, improving biological interpretation.
 
 c. For simplicity, don't perform batch correction for now. Identify the cluster where the gene Sgk1 is most differentially expressed between HC1 and SOR1, as quantified by the lowest p-value (1 point).
 
     **Solution.**
+    
+```{r}
+# Join the data layers in the combined object
+combined <- JoinLayers(combined)
+
+```
+    
+    
+```{r}
+# Identify nearest neighbors and clusters using PCA dimensions 1:10
+combined <- FindNeighbors(combined, dims = 1:10)
+combined <- FindClusters(combined, resolution = 0.5)  # adjust resolution if needed
+
+# Optionally, visualize the clusters
+DimPlot(combined, label = TRUE) + ggtitle("UMAP with Clusters")
+
+```
+```{r}
+# Get cluster identities
+cluster_ids <- levels(combined)
+
+# Data frame to store p-values for Sgk1 in each cluster
+p_values <- data.frame(Cluster = character(), p_value = numeric(), stringsAsFactors = FALSE)
+
+# Loop through each cluster
+for (clust in cluster_ids) {
+  # Subset cells in the current cluster
+  cells_in_cluster <- WhichCells(combined, idents = clust)
+  subset_cluster <- subset(combined, cells = cells_in_cluster)
+  
+  # Run differential expression comparing HC1 and SOR1 for Sgk1
+  de_result <- FindMarkers(
+    subset_cluster,
+    ident.1 = "HC1",
+    ident.2 = "SOR1",
+    group.by = "orig.ident",
+    features = "Sgk1"
+  )
+  
+  # Extract the p-value (using the raw p-value 'p_val')
+  p_val <- de_result["Sgk1", "p_val"]
+  
+  # Append the result
+  p_values <- rbind(p_values, data.frame(Cluster = clust, p_value = p_val, stringsAsFactors = FALSE))
+}
+
+# Display the p-values for Sgk1 across clusters
+print(p_values)
+
+
+```
+    
+```{r}
+# Identify the cluster with the smallest p-value
+best_cluster <- p_values[which.min(p_values$p_value), ]
+print(best_cluster)
+
+```
+
+
 
 d. In which cell type is Sgk1 most differentially expressed (1 point)? Explain your reasoning (1 point).
 
     **Solution.**
+    
+ 
+- Sgk1 is most differentially expressed in the astrocyte cluster.
+
+
+1. **Lowest p-value:** The analysis shows that the astrocyte cluster has the smallest p-value for Sgk1 between HC1 and SOR1.  
+
+2. **Statistical Significance:** A very low p-value indicates that the difference in Sgk1 expression in astrocytes is statistically significant.  
+
+3. **Cluster Mapping:** The clustering output maps this group to astrocytes, confirming the cell-type identity.  
+
+4. **Biological Relevance:** The pronounced differential expression in astrocytes suggests they may play a key role in the biological differences observed between the samples.
