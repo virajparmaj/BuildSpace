@@ -1,0 +1,214 @@
+---
+title: "STAT 530 Homework 11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Instructions
+
+You may use any packages you'd like. Some analyses are most easily done without packages. In these cases you will need to formulate the problem correctly, by identifying the population, the features, the question type, etc. Multiple answers are possible.
+
+If you don't have enough RAM for this assignment you may need to remove objects from the R environment using the function `rm()`. You will then need to run garbage collection using the function `gc()` to free up memory.
+
+Export your solutions to HTML and submit the HTML file on Canvas.
+
+## Problem 1 (4 points)
+
+Vanrobaeys et al. (2023) report that Sgk1 is upregulated in the stratum oriens and stratum radiens in mice that have undergone spatial object recognition training. They also provide evidence that Sgk1 is induced in oligodendrocytes, but don't directly show that these oligodendrocytes are located in the stratum oriens and radiens.
+
+Investigate to what extent Sgk1 is upregulated in oligodendrocytes in the stratum oriens and radiens, using the sample SOR1. Explain the rationale behind your analysis (1 point), conduct your analysis (1 point), give a conclusion as to whether Vanrobaeys' original claim is supported (1 point), and provide a visualization that supports your conclusion (1 point).
+
+```{r}
+# Block 1: Load required libraries
+library(Seurat)
+library(dplyr)
+library(ggplot2)
+library(patchwork)
+
+```
+
+```{r}
+# Block 2: Load the SOR1 Visium counts from HDF5
+sor1_counts <- Read10X_h5(
+  "C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A5/Data/Sample1SOR/filtered_feature_bc_matrix.h5"
+)
+seurat_obj <- CreateSeuratObject(counts = sor1_counts)
+
+```
+
+```{r}
+# Block 3: Read tissue positions and keep only in‐tissue spots
+tpos <- read.csv(
+  "C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A5/Data/Sample1SOR/tissue_positions_list.csv",
+  header = FALSE,
+  col.names = c("barcode","in_tissue","array_row","array_col","pxl_row","pxl_col")
+)
+# Filter Seurat object
+valid_bcs <- tpos$barcode[tpos$in_tissue == 1]
+seurat_obj <- subset(seurat_obj, cells = valid_bcs)
+# Attach pixel coordinates to metadata
+meta <- seurat_obj@meta.data
+meta$pxl_row <- tpos$pxl_row[match(rownames(meta), tpos$barcode)]
+meta$pxl_col <- tpos$pxl_col[match(rownames(meta), tpos$barcode)]
+seurat_obj@meta.data <- meta
+
+```
+
+
+```{r}
+# Block 4: Add subregion labels for each barcode
+# (You must have created this mapping in advance)
+subreg <- read.csv(
+  "C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A5/Data/Sample1SOR/subregion_map.csv"
+)  # columns: barcode, subregion
+seurat_obj <- AddMetaData(
+  seurat_obj,
+  metadata = setNames(subreg$subregion, subreg$barcode),
+  col.name = "subregion"
+)
+
+```
+
+
+```{r}
+# Block 5: Subset to stratum oriens & radiatum
+so <- subset(
+  seurat_obj,
+  subset = subregion %in% c("CA1_stratum_oriens","CA1_stratum_radiatum")
+)
+
+```
+
+
+```{r}
+# Block 6: Normalize the data with SCTransform
+so <- SCTransform(so, verbose = FALSE)
+
+```
+
+```{r}
+# Block 7: Load gene lookup and identify Ensembl IDs
+genes <- read.csv(
+  "C:/Users/viraj/BuildSpace/Courses/STAT-530 Bioinformatics/A9/data/all_genes.csv"
+)
+sgk1_id     <- genes$gene_id[genes$gene_name == "Sgk1"]
+oligo_ids   <- genes$gene_id[genes$gene_name %in% c("Mbp","Plp1","Mog")]
+
+```
+
+
+```{r}
+# Block 8b: Extract per‐spot Sgk1 expression
+# Since Sgk1 appears exactly once at row 17262 in the SCT data:
+
+sgk1_expr <- GetAssayData(so, assay = "SCT", slot = "data")[17262, ]
+
+# Optionally, name the vector by barcode for clarity:
+names(sgk1_expr) <- colnames(so)
+
+# Quick sanity check:
+summary(sgk1_expr)
+
+```
+```{r}
+# Block 9: Compute oligodendrocyte marker score from SCT assay
+
+# Use gene symbols (as in the Visium HDF5) for Mbp, Plp1, Mog
+oligo_symbols <- c("Mbp", "Plp1", "Mog")
+
+# Extract their normalized counts (rows) × spots (columns)
+oligo_mat <- GetAssayData(so, assay = "SCT", slot = "data")[oligo_symbols, ]
+
+# Sum across markers for each spot (column)
+oligo_score <- colSums(as.matrix(oligo_mat))
+
+# Store back into the Seurat object metadata
+so$oligo_score <- oligo_score[colnames(so)]
+
+```
+
+
+```{r}
+# Block 10 (revised): Compute Spearman correlation with approximate p-value
+cor_test <- cor.test(
+  x     = sgk1_expr,
+  y     = so$oligo_score,
+  method = "spearman",
+  exact  = FALSE     # force approximate p-value in presence of ties
+)
+
+```
+
+```{r}
+# Block 11: Print conclusion based on correlation
+
+rho  <- cor_test$estimate
+pval <- cor_test$p.value
+
+cat(sprintf("Spearman rho = %.3f, p = %.3g\n", rho, pval))
+if (pval < 0.05 && rho > 0.5) {
+  cat("Conclusion: Strong positive association—supports Sgk1 upregulation in oligodendrocytes in oriens/radiatum.\n")
+} else {
+  cat("Conclusion: No strong association—does not clearly support the claim.\n")
+}
+
+```
+```{r}
+# Block 12: Scatter plot of oligodendrocyte score vs. Sgk1
+
+df <- data.frame(
+  sgk1      = sgk1_expr,
+  oligo     = so$oligo_score,
+  subregion = so$subregion
+)
+
+p_scatter <- ggplot(df, aes(x = oligo, y = sgk1, color = subregion)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE) +
+  labs(
+    title = "Sgk1 vs. Oligodendrocyte Marker Score",
+    x     = "Oligodendrocyte Score (Mbp+Plp1+Mog)",
+    y     = "Sgk1 Expression"
+  ) +
+  theme_minimal()
+
+print(p_scatter)
+
+```
+```{r}
+# Block 13: Spatial map of Sgk1 expression in oriens & radiatum
+
+sp_df <- data.frame(
+  x    = so@meta.data$pxl_col,
+  y    = so@meta.data$pxl_row,
+  sgk1 = sgk1_expr
+)
+
+p_spatial <- ggplot(sp_df, aes(x = x, y = y, color = sgk1)) +
+  geom_point(size = 1) +
+  scale_color_viridis_c() +
+  labs(title = "Spatial Distribution of Sgk1 in Oriens & Radiatum") +
+  theme_void()
+
+print(p_spatial)
+
+```
+
+**1) Extent of Sgk1 upregulation in oligodendrocytes (SOR1)**  
+We quantified per-spot Sgk1 expression (SCT‐normalized) and computed an “oligo_score” by summing Mbp, Plp1 and Mog expression, restricting to spots annotated as CA1 stratum oriens or radiatum.  The per-spot Sgk1 values range from 0 to 2.71 (median 1.10), showing substantial expression across both layers.
+
+**2) Rationale**  
+To directly test whether the reported Sgk1 induction truly resides in oligodendrocytes within those sublayers, we correlated spot-level Sgk1 expression against an oligodendrocyte marker score.  A positive correlation would support Vanrobaeys et al.’s claim, whereas a lack of association (or negative correlation) would argue against it.
+
+**3) Analysis**  
+After SCTransform normalization, we extracted the Sgk1 row from the SCT assay and computed oligo_score = Mbp + Plp1 + Mog for each spot.  A Spearman correlation gave ρ = –0.455 (p = 3.8×10^–130), indicating a moderately strong *negative* relationship between Sgk1 and oligodendrocyte marker abundance.
+
+**4) Conclusion**  
+Rather than increasing in oligodendrocyte‐rich spots, Sgk1 expression is *lower* where Mbp/Plp1/Mog are highest (ρ < 0).  Thus, in this SOR1 dataset, there is no evidence that Sgk1 upregulation localizes to oligodendrocytes in the stratum oriens or radiatum, contradicting the original claim.
+
+**5) Visualization**  
+- **Scatter plot** of oligo_score vs. Sgk1, colored by subregion, shows a downward trend line in both oriens and radiatum.  
+- **Spatial map** of Sgk1 overlaid on spot coordinates reveals that the highest Sgk1 values do *not* coincide with the densest oligodendrocyte regions.  
