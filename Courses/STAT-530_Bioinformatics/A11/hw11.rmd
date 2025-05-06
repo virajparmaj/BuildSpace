@@ -104,7 +104,7 @@ oligo_ids   <- genes$gene_id[genes$gene_name %in% c("Mbp","Plp1","Mog")]
 # Block 8b: Extract per‐spot Sgk1 expression
 # Since Sgk1 appears exactly once at row 17262 in the SCT data:
 
-sgk1_expr <- GetAssayData(so, assay = "SCT", slot = "data")[17262, ]
+sgk1_expr <- GetAssayData(so, assay = "SCT", layer = "data")[17262, ]
 
 # Optionally, name the vector by barcode for clarity:
 names(sgk1_expr) <- colnames(so)
@@ -114,31 +114,36 @@ summary(sgk1_expr)
 
 ```
 ```{r}
-# Block 9: Compute oligodendrocyte marker score from SCT assay
+# Block 9: Compute oligodendrocyte marker score & restrict to oligo‐rich spots
 
-# Use gene symbols (as in the Visium HDF5) for Mbp, Plp1, Mog
+# 1) Compute per‐spot oligodendrocyte score (Mbp + Plp1 + Mog)
 oligo_symbols <- c("Mbp", "Plp1", "Mog")
+oligo_mat     <- GetAssayData(so, assay = "SCT", layer = "data")[oligo_symbols, ]
+so$oligo_score <- colSums(as.matrix(oligo_mat))
 
-# Extract their normalized counts (rows) × spots (columns)
-oligo_mat <- GetAssayData(so, assay = "SCT", slot = "data")[oligo_symbols, ]
+# 2) Define “oligo‐rich” as the top 25% of spots by oligo_score
+cutoff    <- quantile(so$oligo_score, 0.75)
+oligo_idx <- which(so$oligo_score >= cutoff)
 
-# Sum across markers for each spot (column)
-oligo_score <- colSums(as.matrix(oligo_mat))
+# 3) Subset Sgk1, oligo_score, and subregion to those oligo‐rich spots
+sgk1_oligo   <- sgk1_expr[oligo_idx]
+oligo_rich   <- so$oligo_score[oligo_idx]
+subreg_oligo <- so$subregion[oligo_idx]
 
-# Store back into the Seurat object metadata
-so$oligo_score <- oligo_score[colnames(so)]
 
 ```
 
 
 ```{r}
-# Block 10 (revised): Compute Spearman correlation with approximate p-value
+# Block 10: Spearman correlation between Sgk1 and oligo_score in oligo-rich spots
+
 cor_test <- cor.test(
-  x     = sgk1_expr,
-  y     = so$oligo_score,
-  method = "spearman",
-  exact  = FALSE     # force approximate p-value in presence of ties
+  x     = sgk1_oligo,
+  y     = oligo_rich,
+  method  = "spearman",
+  exact   = FALSE
 )
+
 
 ```
 
@@ -180,35 +185,49 @@ print(p_scatter)
 ```
 ```{r}
 # Block 13: Spatial map of Sgk1 expression in oriens & radiatum
-
-sp_df <- data.frame(
-  x    = so@meta.data$pxl_col,
-  y    = so@meta.data$pxl_row,
-  sgk1 = sgk1_expr
+sp_sub <- data.frame(
+  x    = so@meta.data$pxl_col[oligo_idx],
+  y    = so@meta.data$pxl_row[oligo_idx],
+  sgk1 = sgk1_oligo
 )
 
-p_spatial <- ggplot(sp_df, aes(x = x, y = y, color = sgk1)) +
+p_spatial <- ggplot(sp_sub, aes(x = x, y = y, color = sgk1)) +
   geom_point(size = 1) +
-  scale_color_viridis_c() +
-  labs(title = "Spatial Distribution of Sgk1 in Oriens & Radiatum") +
+  scale_color_viridis_c(name = "Sgk1") +
+  labs(
+    title = "Spatial Distribution of Sgk1 in Oligo-Rich Spots",
+    x = NULL, y = NULL
+  ) +
   theme_void()
 
 print(p_spatial)
 
 ```
 
-**1) Extent of Sgk1 upregulation in oligodendrocytes (SOR1)**  
-We quantified per-spot Sgk1 expression (SCT‐normalized) and computed an “oligo_score” by summing Mbp, Plp1 and Mog expression, restricting to spots annotated as CA1 stratum oriens or radiatum.  The per-spot Sgk1 values range from 0 to 2.71 (median 1.10), showing substantial expression across both layers.
+```{r}
+summary(sgk1_oligo)
+
+```
+
+
+
+**1) Extent of Sgk1 in oligodendrocyte‐rich spots (SOR1)**  
+When we restrict to the top 25% “oligo‐rich” spots (highest Mbp+Plp1+Mog), per‐spot Sgk1 (SCT‐normalized) ranges from 0 to 2.48, with a median of 0.693 and mean of 0.726—showing that, even in oligodendrocyte‐enriched areas, Sgk1 expression stays modest.
 
 **2) Rationale**  
-To directly test whether the reported Sgk1 induction truly resides in oligodendrocytes within those sublayers, we correlated spot-level Sgk1 expression against an oligodendrocyte marker score.  A positive correlation would support Vanrobaeys et al.’s claim, whereas a lack of association (or negative correlation) would argue against it.
+To pinpoint whether Sgk1 truly localizes to oligodendrocytes within oriens/radiatum, we first defined an “oligo_score” by summing three canonical markers, then tested if Sgk1 levels specifically track with that score among the spots richest in oligodendrocytes.
 
 **3) Analysis**  
-After SCTransform normalization, we extracted the Sgk1 row from the SCT assay and computed oligo_score = Mbp + Plp1 + Mog for each spot.  A Spearman correlation gave ρ = –0.455 (p = 3.8×10^–130), indicating a moderately strong *negative* relationship between Sgk1 and oligodendrocyte marker abundance.
+After subsetting to the highest‐scoring 25% of spots, we computed Spearman’s ρ between `sgk1_oligo` and `oligo_rich`:  
+```
+Spearman ρ = 0.004,  p = 0.919
+```  
+This near‐zero, non‐significant result shows virtually no co‐variation.
 
 **4) Conclusion**  
-Rather than increasing in oligodendrocyte‐rich spots, Sgk1 expression is *lower* where Mbp/Plp1/Mog are highest (ρ < 0).  Thus, in this SOR1 dataset, there is no evidence that Sgk1 upregulation localizes to oligodendrocytes in the stratum oriens or radiatum, contradicting the original claim.
+There is no detectable positive association of Sgk1 with oligodendrocyte abundance in the top-quartile oligo spots of oriens/radiatum.  Thus, in SOR1, Vanrobaeys et al.’s claim that Sgk1 is upregulated in oligodendrocytes within those layers is not supported.
 
 **5) Visualization**  
-- **Scatter plot** of oligo_score vs. Sgk1, colored by subregion, shows a downward trend line in both oriens and radiatum.  
-- **Spatial map** of Sgk1 overlaid on spot coordinates reveals that the highest Sgk1 values do *not* coincide with the densest oligodendrocyte regions.  
+- **Scatter plot** of `sgk1_oligo` versus `oligo_rich` (colored by subregion) is essentially a cloud with flat trendlines.  
+- **Spatial map** of `sgk1_oligo` shows no clear enrichment of high Sgk1 values at the positions of the most oligodendrocyte-rich spots.
+
