@@ -1,0 +1,26 @@
+STAT 530 Homework 12
+
+Submit preliminary answers to questions 1 through 3 on your final project. These will not be graded for correctness, only for completion. The purpose of this assignment is to make sure that you are on track with your final project.
+
+1. State an interesting scientific question regarding the formation of spatial object recognition memories that can be answered using both the Visium and snRNA-seq data from Vanrobaeys et al. (2023) (1 point).
+
+Answer:
+
+“Which molecularly‑defined hippocampal neurons automatically encode object‑in‑context information, as revealed by immediate‑early‑gene (IEG) activation after spatial‑object‑recognition training?”
+
+2. Explain how you arrived at this question based on the Vann and Albasser paper (1 point).
+
+Answer:
+
+- Vann & Albasser (2011) showed that the dorsal hippocampus—and specifically CA1— is critical for binding objects to their spatial context during recognition tasks.
+- They demonstrated that exposure to novel object-in-context stimuli rapidly induces IEGs (e.g. Fos, Arc) in discrete CA1 ensembles.
+- This linkage of IEG activation with object-context encoding suggests we can use those IEG “hotspots” as markers to map functionally engaged, molecularly defined neuronal types via snRNA-seq.
+
+
+3. Explain why you think this question can be answered based on the data from Vanrobayes (1 point).
+
+Answer:
+
+1. Spatial resolution of IEG expression:** Vanrobaeys et al. provide 14 Visium SOR slides (HDF5 + `tissue_positions_list.csv`) that map immediate‐early genes (e.g. Fos, Arc) across CA1 sublayers, so we can pinpoint where object‐context activation occurs.
+2. Molecular identities from snRNA‐seq:** Their single‐nucleus dataset (`DGE.mtx` + `all_genes.csv` + `cell_metadata.csv`) gives high‐resolution transcriptomes and cluster labels for individual hippocampal neurons, letting us match spatial hotspots to defined cell types.
+3. Integration via shared gene symbols:** Both the Visium feature matrix and the snRNA‐seq gene lookup use the same gene symbols, enabling direct overlay of IEG signal (Visium) onto transcriptomic clusters (snRNA‐seq), thus answering which molecularly defined neurons carry the object-in-context signature.
